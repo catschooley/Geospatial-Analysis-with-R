@@ -1,0 +1,243 @@
+---
+title: "Final"
+author: "Cat Schooley"
+date: "4/27/2021"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+knitr::opts_knit$set(root.dir = "C:/Users/schoo/Documents/Personal/Education/Spring_2021/Geo_analysis/Final/Data")
+library(sf)
+library(dplyr)
+library(tidyr)
+library(sp)
+library(tidyverse)
+library(ggplot2)
+library(tmap)
+library(climate)
+library(geosphere)
+library(gstat)
+```
+
+
+# Abundance and Distribution of Soft Coral in the Great Barrier 
+
+## Project Overview
+
+The goal of this research is to explore and discuss the correlation between sea temperature and the abundance of soft coral in the Great Barrier Reef. The Great Barrier Reef is located northeast of Queensland Australia. It spans 344,400 km^2^ and is home to 10% of the world's coral reefs. Coral reefs create a habitat where marice flora and fauna can florish. These coral beds provide shelter, food, and a breeding place for thousands of marine species inlcuding but not limited to fish, mollusks, rays, dolphins, sea sponges, and birds. The coral reefs have a direct and indirect relationship with the fishing industry, more bleaching means less fish are caught for human consumption. Increases in human population and industrilization has led to an increase of greenhouse gas accumulation in the atmosphere. This increase has been attributed to an increase global average temperature including sea surface temperatures. This increase in sea surface temperature has caused major bleaching events, most notably the summers of 1998, 2002, 2017, and 2020. Roughly 60% of the Great Barrier Reef has succumb to moderate to severe bleaching as of 2020. This means that these coral have released the algae that lives within their tissue, which provides 90% of their energy. Starved of energy for too long these coral will ultimately die off leading to the discintigration of the coral beds. These coral reefs can take 10,000 years to grow, larger ones up to 300,000 years to fully grow. The main research question is how does a change in sea surface temperature affect the abundance of soft corals in the Great Barrier Reef. An additional goal of this analysis is to determine if there is a correlation between coral abundance and different protection statuses in the Great Barrier Reef. The lowest protection is "Protected area with sustainable use of natural resources", followed by in order by increased use restrictions, "Protected Landscape/Seascape", "Natural Monument or Feature""Habitat/Species Management Area", "National Park", and "Strict Nature Reserve", 
+
+```{r, message=FALSE, warning=FALSE, results='hide'}
+
+#reading in for later
+clean_temp <- data.frame(read.csv("clean_station_temp.csv", header = TRUE))
+
+#create a spatial object of all the soft coral observations
+clean_az<-data.frame(read.csv("clean_az.csv", header = TRUE))
+clean_az_sf <- st_as_sf(clean_az, coords = c("decimalLongitude", "decimalLatitude"), crs = 4283)
+
+#spatial object for the location of stations that took temperature data
+station_loc <- data.frame(read.csv("station_loc.csv", header = TRUE))
+station_loc_sf <- st_as_sf(station_loc, coords = c("lon", "lat"), crs=4283)
+
+
+#spatial object for Australia
+aus <- st_read(".", "aus")
+
+#protected marine area 1997
+marine_prot_97 <- st_read(".", "capad97_marine")
+
+st_crs(marine_prot_97)
+
+clean_az_sf<- st_transform(clean_az_sf, crs = st_crs(marine_prot_97))
+station_loc_sf <- st_transform(station_loc_sf, crs = st_crs(marine_prot_97))
+```
+```{r, message=FALSE, warning=FALSE, results='hide'}
+
+##Notes
+
+#IA: Strict Nature Reserve *****
+#II: National Park ******
+#III: Natural Monument or Feature ******
+#IV: Habitat/Species Management Area ******
+#V: Protected Landscape/Seascape
+#VI: Protected area with sustainable use of natural resources VI
+
+GBR_97 <- marine_prot_97 %>% filter(NAME == "Great Barrier Reef")
+
+strict <- marine_prot_97 %>% filter(IUCN == 'IA')
+
+np <- marine_prot_97 %>% filter(IUCN == 'II')
+
+nm <- marine_prot_97 %>% filter(IUCN == 'III')
+
+hab_man <- marine_prot_97 %>% filter(IUCN == 'IV')
+
+prot_land <- marine_prot_97 %>% filter(IUCN == 'V')
+
+prot_use <- marine_prot_97 %>% filter(IUCN == 'VI')
+
+st_intersection(clean_az_sf, strict)
+#none
+
+st_intersection(clean_az_sf, np)
+#none
+
+st_intersection(clean_az_sf, nm)
+#none
+
+st_intersection(clean_az_sf, hab_man)
+#none
+
+pro_lan_pt <- st_intersection(clean_az_sf, prot_land)
+#659
+
+pro_use_pt <- st_intersection(clean_az_sf, prot_use)
+#1439
+
+```
+
+```{r, message=FALSE, warning=FALSE}
+ggplot() +
+  geom_sf(data=aus, color = "white", fill = "lightgrey") +
+  geom_sf(data = GBR_97, color = "black", aes(fill = NAME)) +
+  scale_fill_discrete(name = "Area of Study")+
+  labs(title = "Marine Protected Areas in Great Barrier Reef, Australia")
+```
+
+```{r, message=FALSE, warning=FALSE}
+
+ggplot() +
+  geom_sf(data=aus, color = "white", fill = "lightgrey") +
+  geom_sf(data = marine_prot_97, color = "black", aes(fill = IUCN)) +
+  coord_sf(xlim = c(141.46, 158), ylim = c(-25,-9.5), expand = FALSE)+
+  scale_fill_discrete(name = "IUCN Code", labels = c("Strict Nature Reserve", 
+                                                     "National Park", 
+                                                     "Natural Monument or Feature",
+                                                     "Habitat/Species Management Area",
+                                                     "Protected Landscape/Seascape",
+                                                     "Protected area with sustainable use of natural resources")) +
+  labs(title = "Marine Protected Areas in Great Barrier Reef, Australia")
+```
+# Data Overview
+
+The data used for this analysis are observations of octocorals, black coral, and wire coral taken between May 1996 and December 2001. All species that are categorized as soft coral. Data from 1996-2001 was used to observe the changes before and after the major bleaching event that occured in 1998. All observations were taken in northeastern Queensland, Austaralia where the Great Barrier Reef is located. Some of these observations were taken near Heron and Lizard island, areas known for a diverse coral biodiversity. Data was published by Australian Institute of Marine Science and hosted by CSIRO National Collections and Marine Infrastructure Information and Data Centre. The choice for these kinds of coral is because they are often the first coral to succumb to bleaching. Some marigins of error or biases in the data could come from the accessibility of certain reef regions and the available technology at the time. While many locations were visited more than once, not all were visited every year. For example, one location might have only been visited in 1996 and 1999. The time of year can also provide a bias to the data as going out into the water during the colder months (June through August in the Southern Hemisphere) is not always pleasant. Being closer to the equator this is not as big a concern, but is important to note. 
+
+
+## Data Visualizations
+
+
+```{r, fig.cap="Figure 3. Boxplot showing the variation of temperatures for each year of temperature observations. There were three stations that provided mulitiple observations for each year. These temperature variations are for the annual temperature of each station."}
+
+#remove outliers
+
+Q <- quantile(clean_temp$t2m, probs = c(.25,.75), na.rm = FALSE)
+iqr <- IQR(clean_temp$t2m)
+clean_temp <- subset(clean_temp, clean_temp$t2m > Q[1] - 1.5*iqr &  clean_temp$t2m < Q[2] + 1.5*iqr)
+
+#boxplot of variation in temperature
+
+ggplot(clean_temp) +
+geom_boxplot(aes(x = t2m , y = year, group = year)) +
+labs(title = "Average Temperature Distribution 1996-2001",
+       subtitle = "Great Barrier Reef: Northeast Queensland",
+       y = "Years",
+       x = "Temperature(Celcius)")
+```
+
+```{r, message=FALSE, warning=FALSE, fig.cap= "Figure 3. This map shows what family of soft coral observations were taken at which locations throught Northeastern Queensland, Australia from 1996-2001. Some trends noticed include; the Alcyoniidae family being found closer to shores, though not necesarilly within the 'Protected Landscape/Seascape' (IUCN:V); the families observed in the 'Protected Area with Sustainable use of Natural Resources' (IUCN:VI) are more diverse; There doesn't seem to be an obvious pattern with how far north and south for families, but this could be better seen with further analysis."}
+tmap_mode("view")
+
+
+tm_shape(marine_prot_97, bbox = tmaptools::bb(xlim = c(142, 155), ylim = c(-25, -9.5)))+
+  tm_polygons('IUCN', labels = c("Strict Nature Reserve", "National Park", "Habitat/Species Management Area","Protected area with sustainable use of natural resources", "Protected Landscape/Seascape"))+
+  tm_fill(showNA = F)+
+  tm_shape(clean_az_sf)+ tm_dots(col = 'family')
+```
+
+
+```{r}
+count_family <- clean_az %>%
+  group_by(family, year) %>%
+  summarise(
+    count = n()
+  )
+
+family <- pivot_wider(count_family, values_from = "count", names_from = "family")
+
+family[is.na(family)] <- 0
+```
+```{r, fig.cap="Figure 1. This boxplot shows how the distribution of observation for different soft coral families between 1996 and 2001. Most families have boxes that overlap showing there isn't a huge difference between those two groups. Some families don't overlap at all showing a significant difference between those two families. Some families have a wide spread of observations over the years, allowing for questions to be asked about the resilience of different soft coral families. Alcyoniidae for instance has a wide distribution across years that are overall high. This could indicate a high resiliance, but is still affected by a change in temperature"}
+#create boxplot of observation variations for each genus from 1996-2001
+
+ggplot(count_family)+
+  geom_boxplot(aes(y = family, x =count)) +
+  labs(title = "Distribution of Soft Coral Family Observations from 1996-2001", subtitle = "Great Barrier Reef: Northeast Queensland, Australia", x = "Number of Observations", y = "Family")
+```
+
+```{r, message = FALSE, warning=FALSE, results='hide'}
+
+#create temperature data.frame with only years and temperatures
+temp_yr <- clean_temp %>%
+  group_by(year) %>%
+  summarise(
+    mean.t2m = mean(t2m)
+  )
+
+#create coral data.frame with only soft coral total counts and years
+cor_yr<- clean_az %>%
+  group_by(year) %>%
+  summarise(
+    count = n()
+  )
+
+#create data.frame with only average counts per family and years
+cor_fam <- count_family %>%
+  group_by(year) %>%
+  summarise(
+    mean.count = mean(count)
+  )
+
+#change year in family data.frame from character to numeric
+cor_fam$year<- as.numeric(cor_fam$year)
+
+#change year in coral data.frame from character to numeric
+cor_yr$year <- as.numeric(cor_yr$year)
+
+#join coral and temperature into one table
+temp_cor <- left_join(temp_yr, cor_yr)
+
+
+#join family data to temp and coral
+cor_yr_fam <- left_join(temp_cor, cor_fam)
+
+
+#calculate correlation between soft coral counts and temperature
+cor(cor_yr_fam$count, cor_yr_fam$mean.t2m)
+```
+
+```{r, fig.cap="Figure 4. The calculated correlation between soft coral family counts per year and average annual temperature was: 0.594461, showing a positive correlation between the two variables. It is difficult to show how these two variable interact without more information. Having more years would serve to show a more accurate correlation.", message=FALSE}
+
+cor_plot <- cor_yr_fam %>%
+  ggplot() +
+  geom_point(mapping = aes(x = mean.t2m, y = count)) +
+  geom_smooth(method = "lm", se = F, aes(x=mean.t2m, y = count))+
+  labs(title = "Correlation between Ocean Temperature at 2 meters and\nObservations of Soft Coral",
+       subtitle = "Great Barrier Reef: Northeast Queensland, Australia\nCorrelation: 0.594461",
+       y = "Observations",
+       x = "Temperature (Celcius)")
+```
+
+
+
+## References
+
+  + CSIRO National Collections and Marine Infrastructure (NCMI) Information and Data Centre (IDC): Surveys of            Octocoral communities, benthic cover and environmental factors on coral reefs of the Great Barrier Reef,             Australia (1996 to present) https://doi.org/10.15468/d0o0fe accessed via GBIF.org on 09-Feb-2021.
+
+* Data from the climate package available in R. That supplies hydrological and meteorological data for much of the world.I used it to find three stations where temperature data was taken at 2 meters for the years 1996-2001.
+  
+  + Czernecki, B.; Głogowski, A.; Nowosad, J. Climate: An R Package to Access Free In-Situ Meteorological and            Hydrological Datasets for Environmental Assessment. Sustainability 2020, 12, 394.                                    https://doi.org/10.3390/su12010394"
+    
+
